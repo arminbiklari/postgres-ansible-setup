@@ -43,8 +43,8 @@ variable "postgresql_users" {
   # Set default values for postgresql_users
   default = [
     {
-      name       = "toman"
-      password   = "toman"
+      name       = "example"
+      password   = "123"
       privileges = {
         create_db   = false
         create_role = false
