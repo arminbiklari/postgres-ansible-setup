@@ -1,0 +1,31 @@
+---
+- name: Extract the list of PostgreSQL database names
+  ansible.builtin.set_fact:
+    postgresql_database_names: "{{ postgresql_databases | map(attribute='name') | list }}"
+
+- name: Set Postgres user vars
+  ansible.builtin.set_fact:
+    postgres_logn_username: "{{ postgres_root_user | default('postgres') }}"
+
+- name: Set Postgres password vars
+  ansible.builtin.set_fact:
+    postgres_login_password: "{{ postgres_root_password | default('') }}"
+
+- name: Run Backup Task from the backup role
+  ansible.builtin.include_role:
+    name: backups
+    tasks_from: postgres
+  vars:
+    s3_backup_dir: "{{ backup.s3_backup_dir }}"
+    postgres_root_user: "{{ postgres_logn_username }}" #postgres
+    postgres_root_password:  "{{ postgres_login_password }}" #fohr2kee0lahbeeKi3uNgah7ievoh2 
+    postgres_host: "{{ ansible_host | default('localhost') }}"
+    postgres_database: "{{ item }}"
+    s3_bucket: "{{ backup.s3.bucket }}"
+    s3_endpoint: "{{ backup.s3.endpoint }}"
+    s3_access_key: "{{ backup.s3.access_key }}"
+    s3_secret_key: "{{ backup.s3.secret_key }}"
+    backup_enabled: true
+    restore_enabled: false
+  loop: "{{ postgresql_database_names }}"
+  when: create_backups | default(false)

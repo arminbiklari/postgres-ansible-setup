@@ -1,0 +1,14 @@
+postgres_databases: ['']  # Default to 'postgres' DB if not provided
+postgres_root_user: ''
+postgres_root_password: ''
+postgres_host: ''
+
+s3_bucket: ''
+s3_access_key: ''
+s3_secret_key: ''
+s3_backup_dir: ''
+s3_endpoint: ''
+
+backup_enabled: ""
+backup_date: 'latest'
+restore_enabled: ""

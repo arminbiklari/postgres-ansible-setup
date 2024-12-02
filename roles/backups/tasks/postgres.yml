@@ -1,0 +1,116 @@
+---
+
+- name: Install PyMySQL
+  ansible.builtin.pip:
+    name:
+      - boto3
+      - botocore
+    state: present
+
+- name: Postgres Backup Task
+  block:
+    - name: Ensure the backup directory exists
+      ansible.builtin.file:
+        path: "{{ s3_backup_dir }}"
+        state: directory
+        mode: '0777'
+
+    - name: Backup PostgreSQL databases
+      community.postgresql.postgresql_db:
+        name: "{{ item }}"
+        state: dump
+        target: "{{ s3_backup_dir }}/{{ postgres_database }}.dump"
+        login_user: "{{ postgres_root_user }}"
+        login_password: "{{ postgres_root_password }}"
+        login_host: "{{ postgres_host }}"
+      become: yes
+      become_user: postgres
+      register: backup_result
+
+    - name: Check if backup was successful
+      ansible.builtin.fail:
+        msg: "PostgreSQL backup failed for {{ postgres_database }}"
+      when: backup_result.rc != 0
+      # loop: "{{ postgres_databases }}"
+
+    - name: Upload backups to MinIO (S3 compatible)
+      amazon.aws.s3_object:
+        bucket: "{{ s3_bucket }}"
+        object: "{{ ansible_hostname }}/{{ postgres_database }}-{{ ansible_date_time.date }}.dump"
+        src: "{{ s3_backup_dir }}/{{ postgres_database }}.dump"
+        mode: put
+        encrypt: false
+        aws_access_key: "{{ s3_access_key }}"
+        aws_secret_key: "{{ s3_secret_key }}"
+        endpoint_url: "{{ s3_endpoint }}"
+      # loop: "{{ postgres_databases }}"
+
+    - name: Clean up local backup files
+      ansible.builtin.file:
+        path: "{{ s3_backup_dir }}/{{ postgres_database }}.dump"
+        state: absent
+      # loop: "{{ postgres_databases }}"
+  when: backup_enabled != false
+
+# tasks/restore.yml
+- name: Postgres Restore Option
+  block:
+    - name: Set the default value for backup_date
+      ansible.builtin.set_fact:
+        backup_date: "{{ backup_date | default('latest') }}"
+
+    # Find the backup file based on the given date or latest
+    - name: Find the backup file in S3
+      amazon.aws.s3_object:
+        bucket: "{{ s3_bucket }}"
+        prefix: "{{ ansible_hostname }}/{{ postgres_database }}"
+        mode: list
+        # region: "{{ backup.s3.region | default('us-east-1') }}"
+        aws_access_key: "{{ s3_access_key }}"
+        aws_secret_key: "{{ s3_secret_key }}"
+        endpoint_url: "{{ s3_endpoint }}"
+      # loop: "{{ postgresql_databases }}"
+      register: s3_files
+
+    - name: Fail if no backup files were found
+      ansible.builtin.debug:
+        msg: No backup files found in S3 for {{ postgres_database }}
+      when: s3_files.s3_keys is not defined or s3_files.s3_keys|length == 0
+
+    - name: Determine the file to restore latest
+      ansible.builtin.set_fact:
+        file_to_restore: >-
+          {{ s3_files.s3_keys | sort(attribute='LastModified', reverse=True) | first }}
+      when: s3_files.s3_keys is defined and s3_files.s3_keys | length > 0
+
+    - name: Fail if no backup file was found
+      ansible.builtin.debug:
+        msg: "{{ file_to_restore }}" #"No backup file found for {{ postgres_database }} with date {{ backup_date }}"
+      # when: file_to_restore is not defined
+
+    # Download the backup file from S3
+    - name: Download backup file from S3 to local
+      amazon.aws.s3_object:
+        bucket: "{{ s3_bucket }}"
+        object: "{{ file_to_restore }}"
+        dest: "{{ s3_backup_dir }}/{{ postgres_database }}_restore.dump"
+        mode: get
+        # region: "{{ backup.s3.region | default('us-east-1') }}"
+        aws_access_key: "{{ s3_access_key }}"
+        aws_secret_key: "{{ s3_secret_key }}"
+        endpoint_url: "{{ s3_endpoint }}"
+      # loop: "{{ postgresql_databases }}"
+
+    # Restore the downloaded backup to PostgreSQL
+    - name: Restore the PostgreSQL database from backup
+      community.postgresql.postgresql_db:
+        name: "{{ postgres_database }}"
+        state: restore
+        target: "{{ s3_backup_dir }}/{{ item }}_restore.dump"
+        login_user: "{{ postgres_root_user }}"
+        login_password: "{{ postgres_root_password }}"
+        login_host: "{{ postgres_host | default('localhost') }}"
+      # loop: "{{ postgresql_databases }}"
+      become: yes
+      become_user: postgres
+  when: restore_enabled != false

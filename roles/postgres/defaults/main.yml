@@ -1,0 +1,64 @@
+---
+### gitlab backend configuration
+gitlab_project_url: ""
+gitlab_terraform_username: ""
+gitlab_terraform_token: ""
+
+# Set postgresql state when configuration changes are made. Recommended values:
+# `restarted` or `reloaded`
+postgresql_restarted_state: "restarted"
+
+postgresql_user: postgres
+postgresql_group: postgres
+
+# `md5` or `scram-sha-256` (https://www.postgresql.org/docs/10/auth-methods.html)
+postgresql_auth_method: "{{ ansible_fips  | ternary('scram-sha-256', 'md5') }}"
+
+postgresql_unix_socket_directories:
+  - /var/run/postgresql
+
+postgresql_service_state: started
+postgresql_service_enabled: true
+
+# Global configuration options that will be set in postgresql.conf.
+postgresql_global_config_options: []
+  # - option: unix_socket_directories
+  #   value: '{{ postgresql_unix_socket_directories | join(",") }}'
+  # - option: log_directory
+  #   value: 'log'
+  # - option: max_connections
+  #   value: '400'
+  # - option: listen_addresses
+  #   value: '*'
+
+# Host based authentication (hba) entries to be added to the pg_hba.conf. This
+# variable's defaults reflect the defaults that come with a fresh installation.
+postgresql_hba_entries: []
+  # - {type: local, database: all, user: postgres, auth_method: peer}
+  # - {type: local, database: all, user: all, auth_method: peer}
+  # - {type: host, database: all, user: all, address: '0.0.0.0/0', auth_method: "{{ postgresql_auth_method }}"}
+  # - {type: host, database: all, user: all, address: '::1/128', auth_method: "{{ postgresql_auth_method }}"}
+
+# Debian only. Used to generate the locales used by PostgreSQL databases.
+postgresql_locales: ""
+# Databases to ensure exist.
+postgresql_databases: []
+# Users to ensure exist.
+postgresql_users: []
+
+# Whether to output user data when managing users.
+postgres_users_no_log: true
+
+__postgresql_version: "16"
+__postgresql_data_dir: "/var/lib/postgresql/{{ __postgresql_version }}/main"
+__postgresql_bin_path: "/usr/lib/postgresql/{{ __postgresql_version }}/bin"
+__postgresql_config_path: "/etc/postgresql/{{ __postgresql_version }}/main"
+__postgresql_daemon: postgresql
+__postgresql_packages:
+  - postgresql-16
+  - postgresql-contrib-16
+  - libpq-dev  
+postgresql_python_library: python3-psycopg2
+
+postgresql_gpg_key_url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+postgresql_repo_url: http://apt.postgresql.org/pub/repos/apt

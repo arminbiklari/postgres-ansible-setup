@@ -1,0 +1,21 @@
+---
+- name: Postgresql
+  become: true
+  hosts: postgres
+  tasks:
+    - name: Setup And Config Postgres Instance
+      ansible.builtin.import_role:
+        name: postgres
+      tags: postgres
+    - name: Create Backups
+      ansible.builtin.import_role:
+        name: postgres
+        tasks_from: backup
+      tags: postgres-backup
+      when: create_backups | default(false)
+    - name: Create Restore
+      ansible.builtin.import_role:
+        name: postgres
+        tasks_from: restore
+      tags: postgres-backup
+      when: restore | default(false)

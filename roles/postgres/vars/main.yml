@@ -1,0 +1,54 @@
+---
+
+postgresql_locales:
+  - 'en_US.UTF-8'
+postgresql_auth_method: "{{ ansible_fips  | ternary('scram-sha-256', 'md5') }}"
+postgresql_hba_entries:
+  - {type: local, database: all, user: postgres, auth_method: peer}
+  - {type: local, database: all, user: all, auth_method: peer}
+  - {type: host, database: all, user: all, address: '0.0.0.0/0', auth_method: "{{ postgresql_auth_method }}"}
+  - {type: host, database: all, user: all, address: '::1/128', auth_method: "{{ postgresql_auth_method }}"}
+
+listen_addresses: "*"
+listen_port: "5432"
+
+postgresql_global_config_options:
+  - option: unix_socket_directories
+    value: '{{ postgresql_unix_socket_directories | join(",") }}'
+  - option: log_directory
+    value: 'log'
+  - option: max_connections
+    value: '400'
+  - option: listen_addresses
+    value: "{{ listen_addresses }}"
+  - option: port
+    value: "{{ listen_port }}"
+
+postgres_root_user: postgres
+postgres_root_password: "ChangeMe"
+
+postgres_users_no_log: true
+postgresql_users:
+  - name: example
+    password: "ChangeMe"
+    privileges:
+      create_db: true
+      create_role: true
+      replication: false
+      superuser: false
+
+postgresql_databases:
+  - name: kong
+    owner: kong
+    encoding: "UTF8"
+    lc_collate: "en_US.UTF-8"
+    lc_ctype: "en_US.UTF-8"
+    template: "template0"
+
+backup:
+  s3_backup_dir: /tmp/pg_backups
+  s3:
+    endpoint: s3-endpoint
+    bucket: backups
+    secret_key: ChangeMe
+    access_key: ChangeMe

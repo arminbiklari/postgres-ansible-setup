@@ -1,0 +1,31 @@
+---
+- name: Manage PostgreSQL database and users 
+  block:
+    - name: Apply Terraform configuration
+      delegate_to: localhost
+      diff: true
+      community.general.terraform:
+        project_path: "{{ role_path }}/files/terraform/"
+        state: present
+        complex_vars: true
+        force_init: true
+        variables:
+          postgresql_users: "{{ postgresql_users }}"
+          postgres_root_password: "{{ postgres_root_password }}"
+          postgres_root_user: "{{ postgres_root_user }}"
+          listen_addresses: "{{ ansible_host }}"
+          listen_port: "{{ listen_port }}"
+          postgresql_databases: "{{ postgresql_databases }}"
+        backend_config:
+          address: "{{ gitlab_project_url }}"
+          lock_address: "{{ gitlab_project_url }}/lock"
+          unlock_address: "{{ gitlab_project_url }}/lock"
+          username: "{{ gitlab_terraform_username }}"
+          password: "{{ gitlab_terraform_token }}"
+          lock_method: "POST"
+          unlock_method: "DELETE"
+          retry_wait_min: "5"
+      register: terraform_output
+
+    - ansible.builtin.debug:
+        msg: "Terraform run output: {{ terraform_output }}"
